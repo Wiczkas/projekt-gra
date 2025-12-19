@@ -2,6 +2,9 @@
 #define GAME_H
 
 #include "snake.h"
+#include <vector>
+
+enum Difficulty { EASY, MEDIUM, HARD };
 
 class Game {
 private:
@@ -10,15 +13,25 @@ private:
 
     Snake snake;
     Point food;
+    std::vector<Point> obstacles;
+
     int score;
     bool gameOver;
+    Difficulty difficulty;
+    int speedMs;
+
+    void initCurses();
+    void shutdownCurses();
 
     void generateFood();
+    void generateObstacles();
+    bool hitsObstacle(const Point& p) const;
+
     void render();
     void handleInput();
 
 public:
-    Game();
+    explicit Game(Difficulty diff = MEDIUM);
     void run();
 };
 
