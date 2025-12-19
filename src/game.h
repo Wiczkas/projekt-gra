@@ -2,6 +2,7 @@
 #define GAME_H
 
 #include "snake.h"
+enum Difficulty { EASY, MEDIUM, HARD };
 
 class Game {
 private:
