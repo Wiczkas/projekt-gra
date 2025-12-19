@@ -3,34 +3,33 @@
 #include <algorithm>
 #include <cstdlib>
 #include <ctime>
-#include <unistd.h>     // usleep
-#include <ncurses.h>    // ncurses
+#include <unistd.h>
+#include <ncurses.h>
 
 Game::Game(Difficulty diff)
     : snake(WIDTH / 2, HEIGHT / 2),
       score(0),
       gameOver(false),
-      difficulty(diff),
-      speedMs(120) {
+      difficulty(diff) {
 
     switch (difficulty) {
         case EASY:   speedMs = 200; break;
         case MEDIUM: speedMs = 120; break;
-        case HARD:   speedMs = 60;  break;
+        case HARD:   speedMs = 70;  break;
     }
 
     std::srand(static_cast<unsigned>(std::time(nullptr)));
+    generateObstacles();
     generateFood();
 }
 
 void Game::initCurses() {
     initscr();
-    raw();                 // stabilniejsze niż cbreak przy grach
+    raw();
     noecho();
     keypad(stdscr, TRUE);
-    nodelay(stdscr, TRUE); // getch() nie blokuje
-    timeout(0);            // dodatkowo: natychmiastowy zwrot z getch()
-    curs_set(0);           // ukryj kursor
+    nodelay(stdscr, TRUE);
+    curs_set(0);
 }
 
 void Game::shutdownCurses() {
@@ -40,61 +39,61 @@ void Game::shutdownCurses() {
     endwin();
 }
 
+void Game::generateObstacles() {
+    obstacles.clear();
+
+    for (int x = 10; x < 30; x++) {
+        obstacles.push_back(Point(x, 8));
+        obstacles.push_back(Point(x, 12));
+    }
+}
+
+bool Game::hitsObstacle(const Point& p) const {
+    return std::find(obstacles.begin(), obstacles.end(), p) != obstacles.end();
+}
+
 void Game::generateFood() {
     do {
         food.x = std::rand() % WIDTH;
         food.y = std::rand() % HEIGHT;
-    } while (std::find(snake.getBody().begin(),
-                       snake.getBody().end(),
-                       food) != snake.getBody().end());
+    } while (
+        hitsObstacle(food) ||
+        std::find(snake.getBody().begin(), snake.getBody().end(), food)
+            != snake.getBody().end()
+    );
 }
 
 void Game::render() {
     clear();
 
-    // górna ramka
-    for (int x = 0; x < WIDTH + 2; x++) {
-        mvaddch(0, x, '#');
-    }
-
-    // plansza
+    for (int x = 0; x < WIDTH + 2; x++) mvaddch(0, x, '#');
     for (int y = 0; y < HEIGHT; y++) {
         mvaddch(y + 1, 0, '#');
         mvaddch(y + 1, WIDTH + 1, '#');
 
         for (int x = 0; x < WIDTH; x++) {
-            Point current(x, y);
+            Point p(x, y);
 
-            if (current == snake.getHead()) {
-                mvaddch(y + 1, x + 1, 'O');
-            } else if (std::find(snake.getBody().begin(),
-                                 snake.getBody().end(),
-                                 current) != snake.getBody().end()) {
+            if (p == snake.getHead()) mvaddch(y + 1, x + 1, 'O');
+            else if (std::find(snake.getBody().begin(), snake.getBody().end(), p)
+                     != snake.getBody().end())
                 mvaddch(y + 1, x + 1, 'o');
-            } else if (current == food) {
-                mvaddch(y + 1, x + 1, '*');
-            } else {
-                mvaddch(y + 1, x + 1, ' ');
-            }
+            else if (p == food) mvaddch(y + 1, x + 1, '*');
+            else if (hitsObstacle(p)) mvaddch(y + 1, x + 1, '#');
+            else mvaddch(y + 1, x + 1, ' ');
         }
     }
 
-    // dolna ramka
-    for (int x = 0; x < WIDTH + 2; x++) {
-        mvaddch(HEIGHT + 1, x, '#');
-    }
+    for (int x = 0; x < WIDTH + 2; x++) mvaddch(HEIGHT + 1, x, '#');
 
     mvprintw(HEIGHT + 3, 0,
-             "Wynik: %d | Sterowanie: WASD | Q - wyjscie | Poziom: %s",
-             score,
-             (difficulty == EASY ? "EASY" : (difficulty == MEDIUM ? "MEDIUM" : "HARD")));
+             "Wynik: %d | WASD | Q-wyjscie | Przeszkody aktywne",
+             score);
 
     refresh();
 }
 
 void Game::handleInput() {
-    // Czytamy WSZYSTKIE znaki z bufora w tej klatce
-    // i reagujemy na ostatni sensowny klawisz.
     int ch;
     while ((ch = getch()) != ERR) {
         switch (ch) {
@@ -103,7 +102,6 @@ void Game::handleInput() {
             case 'a': case 'A': snake.changeDirection(LEFT); break;
             case 'd': case 'D': snake.changeDirection(RIGHT); break;
             case 'q': case 'Q': gameOver = true; break;
-            default: break;
         }
     }
 }
@@ -122,7 +120,9 @@ void Game::run() {
             generateFood();
         }
 
-        if (snake.checkCollision(WIDTH, HEIGHT) || snake.checkSelfCollision()) {
+        if (snake.checkCollision(WIDTH, HEIGHT) ||
+            snake.checkSelfCollision() ||
+            hitsObstacle(snake.getHead())) {
             gameOver = true;
         }
 
@@ -130,7 +130,5 @@ void Game::run() {
     }
 
     shutdownCurses();
-
-    printf("\n=== GAME OVER ===\n");
-    printf("Koncowy wynik: %d\n", score);
+    printf("\n=== GAME OVER ===\nWynik: %d\n", score);
 }
