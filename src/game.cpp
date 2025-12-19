@@ -1,22 +1,43 @@
 #include "game.h"
+
 #include <algorithm>
 #include <cstdlib>
 #include <ctime>
-#include <ncurses.h>
-#include <unistd.h>
+#include <unistd.h>     // usleep
+#include <ncurses.h>    // ncurses
 
-Game::Game()
-    : snake(WIDTH / 2, HEIGHT / 2), score(0), gameOver(false)
-{
+Game::Game(Difficulty diff)
+    : snake(WIDTH / 2, HEIGHT / 2),
+      score(0),
+      gameOver(false),
+      difficulty(diff),
+      speedMs(120) {
+
+    switch (difficulty) {
+        case EASY:   speedMs = 200; break;
+        case MEDIUM: speedMs = 120; break;
+        case HARD:   speedMs = 60;  break;
+    }
+
     std::srand(static_cast<unsigned>(std::time(nullptr)));
     generateFood();
+}
 
+void Game::initCurses() {
     initscr();
-    cbreak();
+    raw();                 // stabilniejsze niż cbreak przy grach
     noecho();
     keypad(stdscr, TRUE);
-    nodelay(stdscr, TRUE);
-    curs_set(0);
+    nodelay(stdscr, TRUE); // getch() nie blokuje
+    timeout(0);            // dodatkowo: natychmiastowy zwrot z getch()
+    curs_set(0);           // ukryj kursor
+}
+
+void Game::shutdownCurses() {
+    nodelay(stdscr, FALSE);
+    echo();
+    noraw();
+    endwin();
 }
 
 void Game::generateFood() {
@@ -31,48 +52,65 @@ void Game::generateFood() {
 void Game::render() {
     clear();
 
-    for (int i = 0; i < WIDTH + 2; ++i) addch('#');
-    addch('\n');
-
-    for (int y = 0; y < HEIGHT; ++y) {
-        addch('#');
-        for (int x = 0; x < WIDTH; ++x) {
-            Point p(x, y);
-            if (p == snake.getHead())
-                addch('O');
-            else if (std::find(snake.getBody().begin(),
-                               snake.getBody().end(),
-                               p) != snake.getBody().end())
-                addch('o');
-            else if (p == food)
-                addch('*');
-            else
-                addch(' ');
-        }
-        addch('#');
-        addch('\n');
+    // górna ramka
+    for (int x = 0; x < WIDTH + 2; x++) {
+        mvaddch(0, x, '#');
     }
 
-    for (int i = 0; i < WIDTH + 2; ++i) addch('#');
-    addch('\n');
+    // plansza
+    for (int y = 0; y < HEIGHT; y++) {
+        mvaddch(y + 1, 0, '#');
+        mvaddch(y + 1, WIDTH + 1, '#');
 
-    printw("Wynik: %d | WASD / strzalki | Q - wyjscie\n", score);
+        for (int x = 0; x < WIDTH; x++) {
+            Point current(x, y);
+
+            if (current == snake.getHead()) {
+                mvaddch(y + 1, x + 1, 'O');
+            } else if (std::find(snake.getBody().begin(),
+                                 snake.getBody().end(),
+                                 current) != snake.getBody().end()) {
+                mvaddch(y + 1, x + 1, 'o');
+            } else if (current == food) {
+                mvaddch(y + 1, x + 1, '*');
+            } else {
+                mvaddch(y + 1, x + 1, ' ');
+            }
+        }
+    }
+
+    // dolna ramka
+    for (int x = 0; x < WIDTH + 2; x++) {
+        mvaddch(HEIGHT + 1, x, '#');
+    }
+
+    mvprintw(HEIGHT + 3, 0,
+             "Wynik: %d | Sterowanie: WASD | Q - wyjscie | Poziom: %s",
+             score,
+             (difficulty == EASY ? "EASY" : (difficulty == MEDIUM ? "MEDIUM" : "HARD")));
+
     refresh();
 }
 
 void Game::handleInput() {
-    int ch = getch();
-    switch (ch) {
-        case 'w': case 'W': case KEY_UP:    snake.changeDirection(UP); break;
-        case 's': case 'S': case KEY_DOWN:  snake.changeDirection(DOWN); break;
-        case 'a': case 'A': case KEY_LEFT:  snake.changeDirection(LEFT); break;
-        case 'd': case 'D': case KEY_RIGHT: snake.changeDirection(RIGHT); break;
-        case 'q': case 'Q': gameOver = true; break;
-        default: break;
+    // Czytamy WSZYSTKIE znaki z bufora w tej klatce
+    // i reagujemy na ostatni sensowny klawisz.
+    int ch;
+    while ((ch = getch()) != ERR) {
+        switch (ch) {
+            case 'w': case 'W': snake.changeDirection(UP); break;
+            case 's': case 'S': snake.changeDirection(DOWN); break;
+            case 'a': case 'A': snake.changeDirection(LEFT); break;
+            case 'd': case 'D': snake.changeDirection(RIGHT); break;
+            case 'q': case 'Q': gameOver = true; break;
+            default: break;
+        }
     }
 }
 
 void Game::run() {
+    initCurses();
+
     while (!gameOver) {
         render();
         handleInput();
@@ -84,14 +122,15 @@ void Game::run() {
             generateFood();
         }
 
-        if (snake.checkCollision(WIDTH, HEIGHT) ||
-            snake.checkSelfCollision()) {
+        if (snake.checkCollision(WIDTH, HEIGHT) || snake.checkSelfCollision()) {
             gameOver = true;
         }
 
-        usleep(100000);
+        usleep(speedMs * 1000);
     }
 
-    endwin();
-    printf("\nGAME OVER\nWynik koncowy: %d\n", score);
+    shutdownCurses();
+
+    printf("\n=== GAME OVER ===\n");
+    printf("Koncowy wynik: %d\n", score);
 }

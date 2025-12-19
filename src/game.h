@@ -2,6 +2,7 @@
 #define GAME_H
 
 #include "snake.h"
+
 enum Difficulty { EASY, MEDIUM, HARD };
 
 class Game {
@@ -14,13 +15,21 @@ private:
     int score;
     bool gameOver;
 
+    Difficulty difficulty;
+    int speedMs;
+
+    void initCurses();
+    void shutdownCurses();
+
     void generateFood();
     void render();
     void handleInput();
 
 public:
-    Game();
+    explicit Game(Difficulty diff = MEDIUM);
     void run();
+    int getScore() const { return score; }
 };
 
 #endif
+

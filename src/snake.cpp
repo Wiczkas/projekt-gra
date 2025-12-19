@@ -1,9 +1,7 @@
 #include "snake.h"
-#include <cstddef>   // std::size_t
+#include <cstddef>
 
-Snake::Snake(int startX, int startY)
-    : dir(RIGHT), growing(false)
-{
+Snake::Snake(int startX, int startY) : dir(RIGHT), growing(false) {
     body.push_back(Point(startX, startY));
     body.push_back(Point(startX - 1, startY));
     body.push_back(Point(startX - 2, startY));
@@ -29,7 +27,7 @@ void Snake::move() {
 }
 
 void Snake::changeDirection(Direction newDir) {
-    // blokada cofania o 180 stopni
+    // zapobiegaj ruchowi o 180 stopni
     if ((dir == UP && newDir == DOWN) ||
         (dir == DOWN && newDir == UP) ||
         (dir == LEFT && newDir == RIGHT) ||
@@ -51,11 +49,8 @@ bool Snake::checkCollision(int width, int height) const {
 
 bool Snake::checkSelfCollision() const {
     Point head = body.front();
-
-    for (std::size_t i = 1; i < body.size(); ++i) {
-        if (body[i] == head) {
-            return true;
-        }
+    for (std::size_t i = 1; i < body.size(); i++) {
+        if (body[i] == head) return true;
     }
     return false;
 }
